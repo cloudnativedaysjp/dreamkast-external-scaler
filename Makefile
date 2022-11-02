@@ -33,8 +33,12 @@ push-image: ## push Docker image
 ##@ Development
 
 .PHONY: generate
-generate: ## Generate code
+generate: externalscaler/externalscaler.proto ## Generate code
 	go generate ./...
+	protoc \
+		--go_out=. --go_opt=paths=source_relative \
+		--go-grpc_out=. --go-grpc_opt=paths=source_relative \
+		externalscaler/externalscaler.proto
 
 .PHONY: fmt
 fmt: ## Run go fmt against code.
@@ -67,3 +71,4 @@ golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
 	GOBIN=$(LOCALBIN) go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.48.0
 
+include ./externalscaler/sub.mk
