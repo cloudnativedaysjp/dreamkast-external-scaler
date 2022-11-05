@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"os"
 	"strconv"
 	"time"
 
@@ -87,8 +88,17 @@ func (e *ExternalScaler) GetMetrics(ctx context.Context, metricRequest *pb.GetMe
 	}, nil
 }
 
+func getenvOrDefault(key, defaultV string) string {
+	v := os.Getenv(key)
+	if v == "" {
+		v = defaultV
+	}
+	return v
+}
+
 func main() {
-	dkClient, err := dreamkast.NewClient("https://event.cloudnativedays.jp/api/")
+	dkUrl := getenvOrDefault("DK_ENDPOINT_URL", "https://event.cloudnativedays.jp/api/")
+	dkClient, err := dreamkast.NewClient(dkUrl)
 	if err != nil {
 		panic(err)
 	}
