@@ -28,19 +28,31 @@ var (
 type ExternalScaler struct {
 	pb.UnimplementedExternalScalerServer
 
-	dkClient dreamkast.Client
+	defaultDkClient dreamkast.Client
 }
 
 func (e *ExternalScaler) IsActive(ctx context.Context, scaledObject *pb.ScaledObjectRef) (*pb.IsActiveResponse, error) {
-	result, err := e.isActive(ctx)
+	dkEndpointUrl := scaledObject.ScalerMetadata["dkEndpointUrl"]
+	var dkClient dreamkast.Client
+	if dkEndpointUrl != "" {
+		var err error
+		dkClient, err = dreamkast.NewClient(dkEndpointUrl)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "failed to connect to specified dkEndpointUrl")
+		}
+	}
+	result, err := e.isActive(ctx, dkClient)
 	if err != nil {
-		return nil, err
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 	return &pb.IsActiveResponse{Result: result}, nil
 }
 
-func (e *ExternalScaler) isActive(ctx context.Context) (bool, error) {
-	conferences, err := e.dkClient.ListConferences(ctx)
+func (e *ExternalScaler) isActive(ctx context.Context, dkClient dreamkast.Client) (bool, error) {
+	if dkClient == nil {
+		dkClient = e.defaultDkClient
+	}
+	conferences, err := dkClient.ListConferences(ctx)
 	if err != nil {
 		return false, status.Error(codes.Internal, err.Error())
 	}
@@ -70,9 +82,18 @@ func (e *ExternalScaler) GetMetricSpec(context.Context, *pb.ScaledObjectRef) (*p
 }
 
 func (e *ExternalScaler) GetMetrics(ctx context.Context, metricRequest *pb.GetMetricsRequest) (*pb.GetMetricsResponse, error) {
-	minReplicas := defaultDesiredReplicas
+	dkEndpointUrl := metricRequest.ScaledObjectRef.ScalerMetadata["dkEndpointUrl"]
+	var dkClient dreamkast.Client
+	if dkEndpointUrl != "" {
+		var err error
+		dkClient, err = dreamkast.NewClient(dkEndpointUrl)
+		if err != nil {
+			return nil, status.Error(codes.InvalidArgument, "failed to connect to specified dkEndpointUrl")
+		}
+	}
 
-	active, err := e.isActive(ctx)
+	minReplicas := defaultDesiredReplicas
+	active, err := e.isActive(ctx, dkClient)
 	if err != nil {
 		return nil, err
 	} else if active {
@@ -97,7 +118,7 @@ func getenvOrDefault(key, defaultV string) string {
 }
 
 func main() {
-	dkUrl := getenvOrDefault("DK_ENDPOINT_URL", "https://event.cloudnativedays.jp/api/")
+	dkUrl := getenvOrDefault("DK_ENDPOINT_URL", "https://event.cloudnativedays.jp/")
 	dkClient, err := dreamkast.NewClient(dkUrl)
 	if err != nil {
 		panic(err)
@@ -105,7 +126,7 @@ func main() {
 
 	s := grpc.NewServer()
 	pb.RegisterExternalScalerServer(s, &ExternalScaler{
-		dkClient: dkClient,
+		defaultDkClient: dkClient,
 	})
 
 	lis, _ := net.Listen("tcp", ":6000")
