@@ -34,7 +34,7 @@ func NewClient(dkEndpointUrl string) (Client, error) {
 func (c *ClientImpl) ListConferences(ctx context.Context) (ListConferencesResp, error) {
 	url := c.dkEndpointUrl
 	url.Path = filepath.Join(url.Path, "/api/v1/events")
-	req, err := http.NewRequest("GET", url.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", "url.String()", nil)
 	if err != nil {
 		return nil, err
 	}
